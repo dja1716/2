@@ -10,6 +10,7 @@ import {
 import styled from "styled-components/native";
 import icons from "./icons";
 import { Ionicons } from "@expo/vector-icons";
+import { Easing } from "react-native-reanimated";
 
 const BLACK_COLOR = "#1e272e";
 const GREY = "#485468";
@@ -21,9 +22,19 @@ const windowHeight = Dimensions.get("window").height;
 
 export default function App() {
   // values
+  const opacity = useRef(new Animated.Value(1)).current;
   const scale = useRef(new Animated.Value(1)).current;
   const position = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-  const position2 = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const scaleOne = position.y.interpolate({
+    inputRange: [-300, -80],
+    outputRange: [2, 1],
+    extrapolate: "clamp",
+  });
+  const scaleTwo = position.y.interpolate({
+    inputRange: [80, 300],
+    outputRange: [1, 2],
+    extrapolate: "clamp",
+  });
   // animations
   const onPressIn = Animated.spring(scale, {
     toValue: 0.9,
@@ -37,27 +48,50 @@ export default function App() {
     toValue: 0,
     useNativeDriver: true,
   });
+
+  const onDropScale = Animated.timing(scale, {
+    toValue: 0,
+    useNativeDriver: true,
+    easing: Easing.linear,
+    duration: 100,
+  });
+
+  const onDropOpacity = Animated.timing(opacity, {
+    toValue: 0,
+    easing: Easing.linear,
+    useNativeDriver: true,
+    duration: 100,
+  });
   // pan responders
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: async (_, { x0, y0 }) => {
-        //position.setValue({ x: position2.x._value, y: position2.y._value });
-        //position.setValue({ x: x0, y: y0 });
-        console.log(x0, y0);
+      onPanResponderGrant: () => {
         onPressIn.start();
       },
-      onPanResponderRelease: (_, { dx, dy }) => {
-        console.log(dx, dy);
-        //position2.setValue({ x: dx, y: dy });
-        //Animated.parallel([onPressOut, goHome]).start();
-        onPressOut.start();
+      onPanResponderRelease: (_, { dy }) => {
+        if (dy < -250 || dy > 250) {
+          Animated.sequence([
+            Animated.parallel([onDropOpacity, onDropScale]),
+            Animated.timing(position, {
+              toValue: 0,
+              useNativeDriver: true,
+              duration: 100,
+              easing: Easing.linear,
+            }),
+          ]).start();
+        } else {
+          Animated.parallel([onPressOut, goHome]).start();
+        }
       },
       onPanResponderMove: (_, { dx, dy, x0, y0, moveX, moveY }) => {
-        console.log(moveX, moveY);
+        // position.setValue({
+        //   x: dx - windowWidth / 2 + x0,
+        //   y: dy - windowHeight / 2 + y0,
+        // });
         position.setValue({
-          x: dx - windowWidth / 2 + x0,
-          y: dy - windowHeight / 2 + y0,
+          x: dx,
+          y: dy,
         });
       },
     })
@@ -66,7 +100,7 @@ export default function App() {
   return (
     <Container>
       <Edge>
-        <WordContainer>
+        <WordContainer style={{ transform: [{ scale: scaleOne }] }}>
           <Word color={GREEN}>O</Word>
         </WordContainer>
       </Edge>
@@ -74,6 +108,7 @@ export default function App() {
         <IconCard
           {...panResponder.panHandlers}
           style={{
+            opacity,
             transform: [...position.getTranslateTransform(), { scale }],
           }}
         >
@@ -81,7 +116,7 @@ export default function App() {
         </IconCard>
       </Center>
       <Edge>
-        <WordContainer>
+        <WordContainer style={{ transform: [{ scale: scaleTwo }] }}>
           <Word color={RED}>X</Word>
         </WordContainer>
       </Edge>
@@ -105,6 +140,7 @@ const Center = styled.View`
   flex: 3;
   justify-content: center;
   align-items: center;
+  z-index: 10;
 `;
 
 const Word = styled.Text`
